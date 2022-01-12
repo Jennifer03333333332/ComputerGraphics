@@ -102,6 +102,7 @@ namespace rst
         int next_id = 0;
         int get_next_id() { return next_id++; }
         //jennifer
-
+        float getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &minZ);
+        float calculateZinterpolatedZ(float x, float y, const Triangle& t);
     };
 }

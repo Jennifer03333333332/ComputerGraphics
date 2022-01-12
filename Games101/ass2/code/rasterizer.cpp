@@ -61,7 +61,19 @@ static bool insideTriangle(float x, float y, const Vector3f* _v)//_v是个存储
     return (cross1 * cross2 > 0) && (cross2 * cross3 > 0) && (cross1 * cross3 > 0);
 }
 
-float getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &minZ) {
+
+//计算??
+static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
+{
+    float c1 = (x * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * y + v[1].x() * v[2].y() - v[2].x() * v[1].y()) / (v[0].x() * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * v[0].y() + v[1].x() * v[2].y() - v[2].x() * v[1].y());
+    float c2 = (x * (v[2].y() - v[0].y()) + (v[0].x() - v[2].x()) * y + v[2].x() * v[0].y() - v[0].x() * v[2].y()) / (v[1].x() * (v[2].y() - v[0].y()) + (v[0].x() - v[2].x()) * v[1].y() + v[2].x() * v[0].y() - v[0].x() * v[2].y());
+    float c3 = (x * (v[0].y() - v[1].y()) + (v[1].x() - v[0].x()) * y + v[0].x() * v[1].y() - v[1].x() * v[0].y()) / (v[2].x() * (v[0].y() - v[1].y()) + (v[1].x() - v[0].x()) * v[2].y() + v[0].x() * v[1].y() - v[1].x() * v[0].y());
+    return { c1,c2,c3 };
+}
+
+// error: ‘calculateZinterpolatedZ’ was not declared in this scope
+// solution: add 'rst::rasterizer::'
+float rst::rasterizer::getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &minZ) {
     float insideTValue = 0;//颜色占比
     //2*2 row行col列
     float row = 2, col = 2;
@@ -72,8 +84,7 @@ float getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &min
             //该采样点的中心
             if (insideTriangle(ex + 1 / (2 * col), ey + 1 / (2 * row), t.v)) {
                 insideTValue += 1 / (col * row);
-                z_interpolated = calculateZinterpolatedZ(ex + 1 / (2 * col), ey + 1 / (2 * row), t);
-                minZ = std::min(minZ, z_interpolated);//取所有采样点中，z最小的
+                minZ = std::min(minZ, calculateZinterpolatedZ(ex + 1 / (2 * col), ey + 1 / (2 * row), t));//取所有采样点中，z最小的
             }
             ex += 1 / col;
         }
@@ -84,7 +95,7 @@ float getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &min
     return insideTValue;
 }
 //计算z插值
-float calculateZinterpolatedZ(float x, float y, const Triangle& t){
+float rst::rasterizer::calculateZinterpolatedZ(float x, float y, const Triangle& t){
     auto v = t.toVector4();
     auto tup = computeBarycentric2D(x, y, t.v);
     float alpha, beta, gamma;
@@ -95,15 +106,6 @@ float calculateZinterpolatedZ(float x, float y, const Triangle& t){
     return z_interpolated;
 }
 
-
-//计算??
-static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
-{
-    float c1 = (x * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * y + v[1].x() * v[2].y() - v[2].x() * v[1].y()) / (v[0].x() * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * v[0].y() + v[1].x() * v[2].y() - v[2].x() * v[1].y());
-    float c2 = (x * (v[2].y() - v[0].y()) + (v[0].x() - v[2].x()) * y + v[2].x() * v[0].y() - v[0].x() * v[2].y()) / (v[1].x() * (v[2].y() - v[0].y()) + (v[0].x() - v[2].x()) * v[1].y() + v[2].x() * v[0].y() - v[0].x() * v[2].y());
-    float c3 = (x * (v[0].y() - v[1].y()) + (v[1].x() - v[0].x()) * y + v[0].x() * v[1].y() - v[1].x() * v[0].y()) / (v[2].x() * (v[0].y() - v[1].y()) + (v[1].x() - v[0].x()) * v[2].y() + v[0].x() * v[1].y() - v[1].x() * v[0].y());
-    return { c1,c2,c3 };
-}
 
 void rst::rasterizer::draw(pos_buf_id pos_buffer, ind_buf_id ind_buffer, col_buf_id col_buffer, Primitive type)
 {
@@ -183,7 +185,7 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                     //framework:get the interpolated z value. 计算当前三角形在这一像素上的深度
 
                     //MSAA下，depth_buf和framebuffer是否都要增大相应倍数？先不用
-                    if (z_interpolated < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
+                    if (minZforThisPixel < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
                         Eigen::Vector3f point((float)x, (float)y, minZforThisPixel);
                         set_pixel(point, t.getColor()* MSAAValue);//update pixel为这个三角形的颜色
                         //depth_buf是被FLX_MAX填满的数组
