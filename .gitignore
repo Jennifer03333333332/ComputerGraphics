@@ -2,3 +2,4 @@
 */Book/*
 *.opendb
 */.vs/*
+*/build/*
