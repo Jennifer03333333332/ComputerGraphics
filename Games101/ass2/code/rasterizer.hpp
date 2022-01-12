@@ -10,6 +10,8 @@
 #include "Triangle.hpp"
 using namespace Eigen;
 
+template <class myType>
+
 namespace rst
 {
     enum class Buffers
@@ -93,7 +95,7 @@ namespace rst
         std::vector<Eigen::Vector3f> frame_buf;
 
         std::vector<float> depth_buf;
-        int get_index(int x, int y);
+        int get_index(myType x, myType y);
 
         int width, height;
 
