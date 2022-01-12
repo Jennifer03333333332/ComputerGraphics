@@ -57,7 +57,7 @@ static bool insideTriangle(float x, float y, const Vector3f* _v)//_v是个存储
     float cross1 = v0v1[0] * v0p[1] - v0v1[1] * v0p[0];
     float cross2 = v1v2[0] * v1p[1] - v1v2[1] * v1p[0];
     float cross3 = v2v0[0] * v2p[1] - v2v0[1] * v2p[0];
-
+    //三叉乘同号
     return (cross1 * cross2 > 0) && (cross2 * cross3 > 0) && (cross1 * cross3 > 0);
 }
 //计算重心
@@ -130,12 +130,18 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     int xmax = (int)std::max(v[0][0], std::max(v[1][0], v[2][0])) + 1;
     int ymax = (int)std::max(v[0][1], std::max(v[1][1], v[2][1])) + 1;
 
+    bool MSAA = false;
 
+    if (MSAA) {
+
+        return;
+    }
+    // Not MSAA
     // 2 遍历boundingbox内所有像素，检查像素中心是否在三角形内
     for (int x = xmin; x <= xmax; x++) {
         for (int y = ymin; y <= ymax; y++) {
             //error 检查的是像素中心点 x+0.5,y+0.5
-            if (insideTriangle((float)x, (float)y, t.v)) {//在三角形内
+            if (insideTriangle((float)(x+0.5), (float)(y+0.5), t.v)) {//在三角形内
                 //get the interpolated z value.
                 auto tup = computeBarycentric2D(x, y, t.v);
                 float alpha, beta, gamma;
