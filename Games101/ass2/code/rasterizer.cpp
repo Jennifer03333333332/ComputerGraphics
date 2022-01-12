@@ -39,7 +39,7 @@ auto to_vec4(const Eigen::Vector3f& v3, float w = 1.0f)
     return Vector4f(v3.x(), v3.y(), v3.z(), w);
 }
 
-
+//计算该点在不在三角形内
 static bool insideTriangle(float x, float y, const Vector3f* _v)//_v是个存储Vector3f的数组
 {
     // TODO : Implement this function to check if the point (x, y) is inside the triangle represented by _v[0], _v[1], _v[2]
@@ -61,16 +61,19 @@ static bool insideTriangle(float x, float y, const Vector3f* _v)//_v是个存储
     return (cross1 * cross2 > 0) && (cross2 * cross3 > 0) && (cross1 * cross3 > 0);
 }
 
-float getMSAAInsideTriangleValue(float x, float y, const Vector3f* _v) {
-    float insideTValue = 0;
+float getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &minZ) {
+    float insideTValue = 0;//颜色占比
     //2*2 row行col列
     float row = 2, col = 2;
     float ex = x, ey = y;
     //each sample
     for (int i = 0; i < row; i++) {
         for (int o = 0; o < col; o++) {
-            if (insideTriangle(ex + 1 / (2 * col), ey + 1 / (2 * row), _v)) {
+            //该采样点的中心
+            if (insideTriangle(ex + 1 / (2 * col), ey + 1 / (2 * row), t.v)) {
                 insideTValue += 1 / (col * row);
+                z_interpolated = calculateZinterpolatedZ(ex + 1 / (2 * col), ey + 1 / (2 * row), t);
+                minZ = std::min(minZ, z_interpolated);//取所有采样点中，z最小的
             }
             ex += 1 / col;
         }
@@ -80,6 +83,18 @@ float getMSAAInsideTriangleValue(float x, float y, const Vector3f* _v) {
 
     return insideTValue;
 }
+//计算z插值
+float calculateZinterpolatedZ(float x, float y, const Triangle& t){
+    auto v = t.toVector4();
+    auto tup = computeBarycentric2D(x, y, t.v);
+    float alpha, beta, gamma;
+    std::tie(alpha, beta, gamma) = tup;
+    float w_reciprocal = 1.0 / (alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
+    float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+    z_interpolated *= w_reciprocal;
+    return z_interpolated;
+}
+
 
 //计算??
 static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
@@ -154,31 +169,25 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     bool MSAA = true;
 
     if (MSAA) {
-        //每个像素划成2*2，对4个采样求解在不在三角形内
+        //锯齿原因分析：像素点内有小采样点应该被涂色和记录却没有
+        //每个像素划成2*2，对4个采样求解在不在三角形内,对每个采样记录深度值
         //如果一个子采样点在三角形内，那么该子采样点所代表的像素的颜色值就加上这个三角形颜色的四分之一
         for (float x = xmin; x <= xmax; x++) {
             for (float y = ymin; y <= ymax; y ++) {
+                float minZforThisPixel = FLT_MAX;
                 //这个值究竟与z_interpolated有什么关系？目前无关
-                int MSAAValue = getMSAAInsideTriangleValue(x, y, t.v);
+                int MSAAValue = getMSAAInsideTriangleValue(x, y, t, minZforThisPixel);
 
                 //当这个像素点在当前三角形内时
                 if (MSAAValue>0) {
                     //framework:get the interpolated z value. 计算当前三角形在这一像素上的深度
-                    //网上某答案的写法：计算该像素点内所有采样点，获得最近的深度
-                    auto tup = computeBarycentric2D(x, y, t.v);
-                    float alpha, beta, gamma;
-                    std::tie(alpha, beta, gamma) = tup;
-                    float w_reciprocal = 1.0 / (alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
-                    float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
-                    z_interpolated *= w_reciprocal;
-                    ///
 
+                    //MSAA下，depth_buf和framebuffer是否都要增大相应倍数？先不用
                     if (z_interpolated < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
-                        //error point不是(x,y,1)？？？是 z_interpolated 但是set_pixel的时候没有用到z值
-                        Eigen::Vector3f point((float)x, (float)y, z_interpolated);//
+                        Eigen::Vector3f point((float)x, (float)y, minZforThisPixel);
                         set_pixel(point, t.getColor()* MSAAValue);//update pixel为这个三角形的颜色
                         //depth_buf是被FLX_MAX填满的数组
-                        depth_buf[get_index(x, y)] = z_interpolated;//update deep buffer
+                        depth_buf[get_index(x, y)] = minZforThisPixel;//update deep buffer
                     }
 
                 }
