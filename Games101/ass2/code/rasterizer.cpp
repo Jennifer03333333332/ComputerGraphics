@@ -72,7 +72,8 @@ static std::tuple<float, float, float> computeBarycentric2D(float x, float y, co
 }
 
 // error: ‘calculateZinterpolatedZ’ was not declared in this scope
-// solution: add 'rst::rasterizer::'
+// solution: add 'rst::rasterizer::' 把函数写进类里，要在头文件里加入声明
+// 不能不按序调用为声明的函数？？除非在类里
 float rst::rasterizer::getMSAAInsideTriangleValue(float x, float y, const Triangle& t, float &minZ) {
     float insideTValue = 0;//颜色占比
     //2*2 row行col列
@@ -177,7 +178,7 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
         for (float x = xmin; x <= xmax; x++) {
             for (float y = ymin; y <= ymax; y ++) {
                 float minZforThisPixel = FLT_MAX;
-                //这个值究竟与z_interpolated有什么关系？目前无关
+                //这个值究竟与z_interpolated有什么关系？目前无关 先往后看看学习一下z_interpolated
                 int MSAAValue = getMSAAInsideTriangleValue(x, y, t, minZforThisPixel);
 
                 //当这个像素点在当前三角形内时
