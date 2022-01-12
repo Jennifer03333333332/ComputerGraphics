@@ -81,7 +81,7 @@ float getMSAAInsideTriangleValue(float x, float y, const Vector3f* _v) {
     return insideTValue;
 }
 
-//计算重心
+//计算??
 static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
 {
     float c1 = (x * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * y + v[1].x() * v[2].y() - v[2].x() * v[1].y()) / (v[0].x() * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * v[0].y() + v[1].x() * v[2].y() - v[2].x() * v[1].y());
@@ -151,18 +151,20 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     int xmax = (int)std::max(v[0][0], std::max(v[1][0], v[2][0])) + 1;
     int ymax = (int)std::max(v[0][1], std::max(v[1][1], v[2][1])) + 1;
 
-    bool MSAA = false;
+    bool MSAA = true;
 
     if (MSAA) {
-        //每个像素划成2*2，对4个采样求解在不在三角形内，在1不在0，加起来求平均值
+        //每个像素划成2*2，对4个采样求解在不在三角形内
+        //如果一个子采样点在三角形内，那么该子采样点所代表的像素的颜色值就加上这个三角形颜色的四分之一
         for (float x = xmin; x <= xmax; x++) {
             for (float y = ymin; y <= ymax; y ++) {
-                //这个值究竟与z_interpolated有什么关系？
+                //这个值究竟与z_interpolated有什么关系？目前无关
                 int MSAAValue = getMSAAInsideTriangleValue(x, y, t.v);
 
-
+                //当这个像素点在当前三角形内时
                 if (MSAAValue>0) {
-                    //framework:get the interpolated z value.
+                    //framework:get the interpolated z value. 计算当前三角形在这一像素上的深度
+                    //网上某答案的写法：计算该像素点内所有采样点，获得最近的深度
                     auto tup = computeBarycentric2D(x, y, t.v);
                     float alpha, beta, gamma;
                     std::tie(alpha, beta, gamma) = tup;
@@ -171,10 +173,11 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                     z_interpolated *= w_reciprocal;
                     ///
 
-                    if (z_interpolated < depth_buf[get_index(x, y)]) {//depth_buf有初始值吗
+                    if (z_interpolated < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
                         //error point不是(x,y,1)？？？是 z_interpolated 但是set_pixel的时候没有用到z值
-                        Eigen::Vector3f point((float)x, (float)y, 1);//
-                        set_pixel(point, t.getColor());//update pixel
+                        Eigen::Vector3f point((float)x, (float)y, z_interpolated);//
+                        set_pixel(point, t.getColor()* MSAAValue);//update pixel为这个三角形的颜色
+                        //depth_buf是被FLX_MAX填满的数组
                         depth_buf[get_index(x, y)] = z_interpolated;//update deep buffer
                     }
 
@@ -199,7 +202,7 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                 /////
                 if (z_interpolated < depth_buf[get_index(x, y)]) {//depth_buf 是 std::vector<float>
                     //error point不是(x,y,1)？？？是 z_interpolated 但是set_pixel的时候没有用到z值
-                    Eigen::Vector3f point((float)x, (float)y, 1);//
+                    Eigen::Vector3f point((float)x, (float)y, z_interpolated);//
                     set_pixel(point, t.getColor());//update pixel
                     depth_buf[get_index(x, y)] = z_interpolated;//update deep buffer
                 }
