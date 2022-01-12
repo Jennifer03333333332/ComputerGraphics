@@ -221,6 +221,7 @@ rst::rasterizer::rasterizer(int w, int h) : width(w), height(h)
 }
 
 //Int or float type
+template <class myType>
 float rst::rasterizer::get_index(myType x, myType y)
 {
     return (height - 1 - y) * width + x;
