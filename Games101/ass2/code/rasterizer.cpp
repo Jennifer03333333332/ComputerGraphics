@@ -130,10 +130,31 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     int xmax = (int)std::max(v[0][0], std::max(v[1][0], v[2][0])) + 1;
     int ymax = (int)std::max(v[0][1], std::max(v[1][1], v[2][1])) + 1;
 
-    bool MSAA = false;
+    bool MSAA = true;
 
     if (MSAA) {
+        //每个像素检查2*2
+        for (float x = xmin; x <= xmax; x+=0.5) {
+            for (float y = ymin; y <= ymax; y += 0.5) {
+                if (insideTriangle((float)(x + 0.25), (float)(y + 0.25), t.v)) {
+                    //framework:get the interpolated z value.
+                    auto tup = computeBarycentric2D(x, y, t.v);
+                    float alpha, beta, gamma;
+                    std::tie(alpha, beta, gamma) = tup;
+                    float w_reciprocal = 1.0 / (alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                    float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                    z_interpolated *= w_reciprocal;
+                    /////
+                    if (z_interpolated < depth_buf[get_index(x, y)]) {//depth_buf有初始值吗
+                        //error point不是(x,y,1)？？？是 z_interpolated 但是set_pixel的时候没有用到z值
+                        Eigen::Vector3f point((float)x, (float)y, 1);//
+                        set_pixel(point, t.getColor());//update pixel
+                        depth_buf[get_index(x, y)] = z_interpolated;//update deep buffer
+                    }
 
+                }
+            }
+        }
         return;
     }
     // Not MSAA
@@ -199,7 +220,9 @@ rst::rasterizer::rasterizer(int w, int h) : width(w), height(h)
     depth_buf.resize(w * h);
 }
 
-int rst::rasterizer::get_index(int x, int y)
+//Int or float type
+template <class myType> 
+float rst::rasterizer::get_index(myType x, myType y)
 {
     return (height - 1 - y) * width + x;
 }
