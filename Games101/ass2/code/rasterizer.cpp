@@ -60,6 +60,27 @@ static bool insideTriangle(float x, float y, const Vector3f* _v)//_v是个存储
     //三叉乘同号
     return (cross1 * cross2 > 0) && (cross2 * cross3 > 0) && (cross1 * cross3 > 0);
 }
+
+float getMSAAInsideTriangleValue(float x, float y, const Vector3f* _v) {
+    float insideTValue = 0;
+    //2*2 row行col列
+    float row = 2, col = 2;
+    float ex = x, ey = y;
+    //each sample
+    for (int i = 0; i < row; i++) {
+        for (int o = 0; o < col; o++) {
+            if (insideTriangle(ex + 1 / (2 * col), ey + 1 / (2 * row), _v)) {
+                insideTValue += 1 / (col * row);
+            }
+            ex += 1 / col;
+        }
+        ex = x;
+        ey += 1 / row;
+    }
+
+    return insideTValue;
+}
+
 //计算重心
 static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
 {
@@ -130,13 +151,17 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     int xmax = (int)std::max(v[0][0], std::max(v[1][0], v[2][0])) + 1;
     int ymax = (int)std::max(v[0][1], std::max(v[1][1], v[2][1])) + 1;
 
-    bool MSAA = true;
+    bool MSAA = false;
 
     if (MSAA) {
-        //每个像素检查2*2
-        for (float x = xmin; x <= xmax; x+=0.5) {
-            for (float y = ymin; y <= ymax; y += 0.5) {
-                if (insideTriangle((float)(x + 0.25), (float)(y + 0.25), t.v)) {
+        //每个像素划成2*2，对4个采样求解在不在三角形内，在1不在0，加起来求平均值
+        for (float x = xmin; x <= xmax; x++) {
+            for (float y = ymin; y <= ymax; y ++) {
+                //这个值究竟与z_interpolated有什么关系？
+                int MSAAValue = getMSAAInsideTriangleValue(x, y, t.v);
+
+
+                if (MSAAValue>0) {
                     //framework:get the interpolated z value.
                     auto tup = computeBarycentric2D(x, y, t.v);
                     float alpha, beta, gamma;
@@ -144,7 +169,8 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                     float w_reciprocal = 1.0 / (alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
                     float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
                     z_interpolated *= w_reciprocal;
-                    /////
+                    ///
+
                     if (z_interpolated < depth_buf[get_index(x, y)]) {//depth_buf有初始值吗
                         //error point不是(x,y,1)？？？是 z_interpolated 但是set_pixel的时候没有用到z值
                         Eigen::Vector3f point((float)x, (float)y, 1);//
@@ -164,7 +190,7 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
             //error 检查的是像素中心点 x+0.5,y+0.5
             if (insideTriangle((float)(x+0.5), (float)(y+0.5), t.v)) {//在三角形内
                 //get the interpolated z value.
-                auto tup = computeBarycentric2D(x, y, t.v);
+                auto tup = computeBarycentric2D(x + 0.5, y+0.5, t.v);
                 float alpha, beta, gamma;
                 std::tie(alpha, beta, gamma) = tup;
                 float w_reciprocal = 1.0 / (alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
@@ -210,6 +236,7 @@ void rst::rasterizer::clear(rst::Buffers buff)
     }
     if ((buff & rst::Buffers::Depth) == rst::Buffers::Depth)
     {
+        //初始深度为无穷大
         std::fill(depth_buf.begin(), depth_buf.end(), std::numeric_limits<float>::infinity());
     }
 }
