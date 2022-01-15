@@ -1,6 +1,6 @@
 *.pdf
 */Book/*
-.db
+*.db
 *.opendb
 */build/*
 .vs/
