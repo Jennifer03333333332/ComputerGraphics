@@ -3,6 +3,7 @@
 *.opendb
 */build/*
 .vs/
+.vs/*
 .vscode/*
 # Build results
 [Dd]ebug/
