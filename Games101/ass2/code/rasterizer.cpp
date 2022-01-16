@@ -62,7 +62,7 @@ static bool insideTriangle(float x, float y, const Vector3f* _v)//_v是个存储
 }
 
 
-//计算??
+//2D计算重心坐标
 static std::tuple<float, float, float> computeBarycentric2D(float x, float y, const Vector3f* v)
 {
     float c1 = (x * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * y + v[1].x() * v[2].y() - v[2].x() * v[1].y()) / (v[0].x() * (v[1].y() - v[2].y()) + (v[2].x() - v[1].x()) * v[0].y() + v[1].x() * v[2].y() - v[2].x() * v[1].y());
@@ -96,8 +96,10 @@ float rst::rasterizer::getMSAAInsideTriangleValue(float x, float y, const Triang
     return insideTValue;
 }
 //计算z插值
+//已知三角形三个顶点的深度属性，求三角形内部像素的深度值
 float rst::rasterizer::calculateZinterpolatedZ(float x, float y, const Triangle& t){
     auto v = t.toVector4();
+    //tup=重心坐标(alpha, beta, gamma)
     auto tup = computeBarycentric2D(x, y, t.v);
     float alpha, beta, gamma;
     std::tie(alpha, beta, gamma) = tup;
@@ -172,27 +174,46 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     bool MSAA = true;
 
     if (MSAA) {
-        //锯齿原因分析：像素点内有小采样点应该被涂色和记录却没有
-        //每个像素划成2*2，对4个采样求解在不在三角形内,对每个采样记录深度值
-        //如果一个子采样点在三角形内，那么该子采样点所代表的像素的颜色值就加上这个三角形颜色的四分之一
-        for (float x = xmin; x <= xmax; x++) {
-            for (float y = ymin; y <= ymax; y ++) {
-                float minZforThisPixel = FLT_MAX;
-                //这个值究竟与z_interpolated有什么关系？目前无关 先往后看看学习一下z_interpolated
-                int MSAAValue = getMSAAInsideTriangleValue(x, y, t, minZforThisPixel);
-
-                //当这个像素点在当前三角形内时
-                if (MSAAValue>0) {
-                    //framework:get the interpolated z value. 计算当前三角形在这一像素上的深度
-
-                    //MSAA下，depth_buf和framebuffer是否都要增大相应倍数？先不用
-                    if (minZforThisPixel < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
-                        Eigen::Vector3f point((float)x, (float)y, minZforThisPixel);
-                        set_pixel(point, t.getColor()* MSAAValue);//update pixel为这个三角形的颜色
-                        //depth_buf是被FLX_MAX填满的数组
-                        depth_buf[get_index(x, y)] = minZforThisPixel;//update deep buffer
+        std::vector<Eigen::Vector2f> pos
+        {
+            {0.25,0.25},
+            {0.75,0.25},
+            {0.25,0.75},
+            {0.75,0.75},
+        };
+        for (int x = min_x; x <= max_x; x++) {
+            for (int y = min_y; y <= max_y; y++) {
+                // 记录最小深度
+                float minDepth = FLT_MAX;
+                // 四个小点中落入三角形中的点的个数
+                int count = 0;
+                // 对四个小点坐标进行判断 
+                for (int i = 0; i < 4; i++) {
+                    // 小点是否在三角形内
+                    if (insideTriangle((float)x + pos[i][0], (float)y + pos[i][1], t.v)) {
+                        // 如果在，对深度z进行插值
+                        auto tup = computeBarycentric2D((float)x + pos[i][0], (float)y + pos[i][1], t.v);
+                        float alpha;
+                        float beta;
+                        float gamma;
+                        std::tie(alpha, beta, gamma) = tup;
+                        float w_reciprocal = 1.0 / (alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                        float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                        z_interpolated *= w_reciprocal;
+                        minDepth = std::min(minDepth, z_interpolated);
+                        count++;
                     }
-
+                }
+                if (count != 0) {
+                    if (depth_buf[get_index(x, y)] > minDepth) {
+                        Vector3f color = t.getColor() * count / 4.0;
+                        Vector3f point(3);
+                        point << (float)x, (float)y, minDepth;
+                        // 替换深度
+                        depth_buf[get_index(x, y)] = minDepth;
+                        // 修改颜色
+                        set_pixel(point, color);
+                    }
                 }
             }
         }
@@ -218,13 +239,9 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                     set_pixel(point, t.getColor());//update pixel
                     depth_buf[get_index(x, y)] = z_interpolated;//update deep buffer
                 }
-
             }
         }
     }
-
-
-    // If so, use the following code to 
     // TODO : set the current pixel (use the set_pixel function) to the color of the triangle (use getColor function) if it should be painted.
 }
 
