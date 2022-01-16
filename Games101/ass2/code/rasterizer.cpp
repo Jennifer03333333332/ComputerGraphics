@@ -181,8 +181,8 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
             {0.25,0.75},
             {0.75,0.75},
         };
-        for (int x = min_x; x <= max_x; x++) {
-            for (int y = min_y; y <= max_y; y++) {
+        for (int x = xmin; x <= xmax; x++) {
+            for (int y = ymin; y <= ymax; y++) {
                 // 记录最小深度
                 float minDepth = FLT_MAX;
                 // 四个小点中落入三角形中的点的个数
