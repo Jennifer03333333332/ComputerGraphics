@@ -191,8 +191,10 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                     //MSAA下，depth_buf和framebuffer是否都要增大相应倍数？先不用
                     if (minZforThisPixel < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
                         Eigen::Vector3f point((float)x, (float)y, minZforThisPixel);
-                        set_pixel(point, t.getColor() * MSAAValue);//update pixel为这个三角形的颜色
-                        //depth_buf是被FLX_MAX填满的数组
+                        //error 像素涂成三角形的颜色*像素内有多少个采样在三角形内的比例 + 不在三角形内的比例*原屏幕色
+                        set_pixel(point, t.getColor() * MSAAValue + (1.0f-MSAAValue)* frame_buf[get_index(x, y)]);//update pixel为这个三角形的颜色
+                        
+                                                                   //depth_buf是被FLX_MAX填满的数组
                         depth_buf[get_index(x, y)] = minZforThisPixel;//update deep buffer
                     }
 
@@ -218,6 +220,7 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                 if (z_interpolated < depth_buf[get_index(x, y)]) {//depth_buf 是 std::vector<float>
                     //error point不是(x,y,1)？？？是 z_interpolated 但是set_pixel的时候没有用到z值
                     Eigen::Vector3f point((float)x, (float)y, z_interpolated);//
+                    //像素在三角形内：涂三角形的颜色，像素不在三角形内：不涂色
                     set_pixel(point, t.getColor());//update pixel
                     depth_buf[get_index(x, y)] = z_interpolated;//update deep buffer
                 }
