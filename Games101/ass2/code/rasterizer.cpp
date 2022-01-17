@@ -192,6 +192,12 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
                     if (minZforThisPixel < depth_buf[get_index(x, y)]) {//当前三角形在这一像素的深度<记录的深度
                         Eigen::Vector3f point((float)x, (float)y, minZforThisPixel);
                         //error 像素涂成三角形的颜色*像素内有多少个采样在三角形内的比例 + 不在三角形内的比例*原屏幕色
+                        // Vector3f mixColor;
+                        // Vector3f displayColor = frame_buf[get_index(x, y)];
+                        // mixColor<< t.getColor()[0]* MSAAValue + (1.0f-MSAAValue)*displayColor[0],
+                        //             t.getColor()[1]* MSAAValue + (1.0f-MSAAValue)*displayColor[1],
+                        //             t.getColor()[2]* MSAAValue + (1.0f-MSAAValue)*displayColor[2];
+                        // set_pixel(point, mixColor);
                         set_pixel(point, t.getColor() * MSAAValue + (1.0f-MSAAValue)* frame_buf[get_index(x, y)]);//update pixel为这个三角形的颜色
                         
                                                                    //depth_buf是被FLX_MAX填满的数组
