@@ -41,7 +41,9 @@ highp float rand_2to1(vec2 uv ) {
 }
 
 float unpack(vec4 rgbaDepth) {
-    const vec4 bitShift = vec4(1.0, 1.0/256.0, 1.0/(256.0*256.0), 1.0/(256.0*256.0*256.0));
+    //const vec4 bitShift = vec4(1.0, 1.0/256.0, 1.0/(256.0*256.0), 1.0/(256.0*256.0*256.0));
+    const vec4 bitShift = vec4(1.0, 1.0/255.0, 1.0/(255.0*255.0), 1.0/(255.0*255.0*255.0));
+
     return dot(rgbaDepth, bitShift);
 }
 
@@ -102,6 +104,38 @@ float PCSS(sampler2D shadowMap, vec4 coords){
   return 1.0;
 
 }
+float Bias(){
+ //解决shadow bias 因为shadow map的精度有限，当要渲染的fragment在light space中距Light很远的时候，就会有多个附近的fragement会samper shadow map中同一个texel,但是即使这些fragment在camera view space中的深度值z随xy变化是值变化是很大的，
+  //但他们在light space 中的z值(shadow map中的值)却没变或变化很小，这是因为shadow map分辨率低，采样率低导致精度低，不能准确的记录这些细微的变化
+ 
+  // calculate bias (based on depth map resolution and slope)  vec3 lightDir = normalize(uLightPos);
+  vec3 lightDir = normalize(uLightPos);
+  vec3 normal = normalize(vNormal);
+  float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.005);
+  return bias;
+}
+
+//Task 2
+// Camera Pass
+//查询当前着色点在 ShadowMap 上记录的深度值，并与转换到 light space 的深度值比较后返回 visibility 项
+//查询坐标需要先转换到 NDC 标准空间 [0,1]
+float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
+  float bias = Bias();  // 1e-5
+  vec4 depthpack = texture2D(shadowMap, shadowCoord.xy);
+  float depthUnpack = unpack(depthpack);//unpack后已经在[0,1]
+  //如果shadow map的depth < lightsource->shading point 的distance = shadow
+  if(depthUnpack > shadowCoord.z - bias)
+      return 1.0;
+  return 0.0;
+
+
+  // float depthOnShadowMap = unpack(texture2D(shadowMap, shadowCoord.xy));
+  // if (abs(depthOnShadowMap) < 1e-5) depthOnShadowMap = 1.0;
+  // float depth = shadowCoord.z;
+  
+  // float vis = step(depth - EPS, depthOnShadowMap);
+  // return vis;
+}
 
 vec3 blinnPhong() {
   vec3 color = texture2D(uSampler, vTextureCoord).rgb;
@@ -134,20 +168,21 @@ void main(void) {
 
   //shadowCoord 需要normalize 到 NDC
   //1 vPositionFromLight 需要从齐次转回来（-1，1），然后转为(0,1)
-  // vec3 shadowCoordNDC = (vPositionFromLight.xyz / vPositionFromLight.w + 1.0) / 2.0;
+  vec3 shadowCoordNDC = (vPositionFromLight.xyz / vPositionFromLight.w + 1.0) / 2.0;
+
   
-  // visibility = useShadowMap(uShadowMap, vec4(shadowCoordNDC, 1.0));
+  visibility = useShadowMap(uShadowMap, vec4(shadowCoordNDC, 1.0));
   // //visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0));
   // //visibility = PCSS(uShadowMap, vec4(shadowCoord, 1.0));
 
   
-
+  //0: 无颜色 黑
   gl_FragColor = vec4(phongColor * visibility, 1.0);
 
 
 
   //origin
-  gl_FragColor = vec4(phongColor, 1.0);
+  //gl_FragColor = vec4(phongColor, 1.0);
 
 
 }
