@@ -53,17 +53,27 @@ function GAMES202Main() {
 	// Add shapes
 	
 	let floorTransform = setTransform(0, 0, -30, 4, 4, 4);
-	let obj1Transform = setTransform(0, 0, 0, 20, 20, 20);
-	let obj2Transform = setTransform(40, 0, -40, 10, 10, 10);
+	
+	//let obj2Transform = setTransform(40, 0, -40, 10, 10, 10);
 
-	loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj1Transform);
-	loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj2Transform);
+	// let obj1Transform = setTransform(0, 0, 0, 20, 20, 20);
+	// loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj1Transform);
+
+
+	//loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj2Transform);
+
+	
 	loadOBJ(renderer, 'assets/floor/', 'floor', 'PhongMaterial', floorTransform);
-	
-	//loadOBJ(renderer, 'assets/testObj/', 'testObj', 'PhongMaterial', obj1Transform);
-	
+
+	let testTransform = setTransform(40, 0, 30, 10, 10, 10);
+	loadOBJ(renderer, 'assets/testObj/', 'testObj', 'PhongMaterial', testTransform);
+	//loadOBJ(renderer, 'assets/Earth/', 'Earth', 'PhongMaterial', sphereTransform);
+
+	let sphereTransform = setTransform(0, 0, 0, 2, 2, 2);
+	loadOBJ(renderer, 'assets/kknight/', 'knight', 'PhongMaterial', sphereTransform);
+
 	// let floorTransform = setTransform(0, 0, 0, 100, 100, 100);
-	// let cubeTransform = setTransform(0, 50, 0, 10, 50, 10);
+	//let cubeTransform = setTransform(0, 50, 0, 10, 50, 10);
 	// let sphereTransform = setTransform(30, 10, 0, 10, 10, 10);
 
 	//loadOBJ(renderer, 'assets/basic/', 'cube', 'PhongMaterial', cubeTransform);
