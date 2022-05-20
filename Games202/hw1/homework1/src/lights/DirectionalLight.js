@@ -24,6 +24,7 @@ class DirectionalLight {
         //consider light as camera
         // Model transform
         // 这些都是来自gl-matrix的函数，第一个参数out：存放结果
+        //mat4.identity(modelMatrix);
 		mat4.translate(modelMatrix, modelMatrix, translate);//this.mesh.transform.
 		mat4.scale(modelMatrix, modelMatrix, scale);
         // View transform. (out, eye, center, up). View = Rview*Tview
@@ -31,7 +32,9 @@ class DirectionalLight {
         // Projection transform. ortho(out, left, right, bottom, top, near, far)
         // 参数为被clip出来的区域，需要把目标物体框住
         //mat4.ortho(projectionMatrix,-500,500,-500,500,0.1,1000);
-        mat4.ortho(projectionMatrix, -500.0, 500.0, -500.0, 500.0, 0.1, 500);
+        //mat4.ortho(projectionMatrix, -500.0, 500.0, -500.0, 500.0, 0.1, 500);
+        //改变参数后锯齿少了很多 ？
+        mat4.ortho(projectionMatrix, -120.0, 120.0, -120.0, 120.0, 0, 500);
         //顺序： projectionMatrix * viewMatrix
         mat4.multiply(lightMVP, projectionMatrix, viewMatrix);
         mat4.multiply(lightMVP, lightMVP, modelMatrix);
