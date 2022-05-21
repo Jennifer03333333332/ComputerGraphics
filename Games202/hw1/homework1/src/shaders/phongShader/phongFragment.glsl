@@ -120,7 +120,6 @@ float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {//PCF = sm + 抗�
   
   //return 1.0;
 }
-
 //2.3 PCSS
 //计算blocker周围 的平均深度。 zReceiver： shading point 到 光源的距离
 float findBlocker(sampler2D shadowMap, vec2 uv, float zReceiver ) {
@@ -154,14 +153,15 @@ float PCSS(sampler2D shadowMap, vec4 coords){
   //在该点周围找一圈像素，计算平均深度
   float avg_depth = findBlocker(shadowMap, coords.xy, coords.z);
   // STEP 2: penumbra size
-    //d_blocker(就是avg_depth) : d_receiver(是depth_sm_to_light - avg_depth) = W_light : W_penumbra(=filter size)
+    //d_blocker(就是avg_depth) : d_receiver(是coords.z  - avg_depth) = W_light : W_penumbra(=filter size)
   //自定义了光源大小
-  float W_penumbra = LIGHT_WIDTH * (depth_sm_to_light - avg_depth) / avg_depth;
+  float W_penumbra = LIGHT_WIDTH * (coords.z - avg_depth) / avg_depth;
   //问题：W_penumbra太小了 ？
-  W_penumbra = min(W_penumbra, MAX_PENUMBRA);
+  //W_penumbra = min(W_penumbra, MAX_PENUMBRA);
   // STEP 3: filtering
   return PCF(shadowMap, coords, W_penumbra);//FILTER_SIZE
 }
+
 
 
 // float Bias(){
