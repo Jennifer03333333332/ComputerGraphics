@@ -65,12 +65,14 @@ function GAMES202Main() {
 	
 	loadOBJ(renderer, 'assets/floor/', 'floor', 'PhongMaterial', floorTransform);
 
-	let testTransform = setTransform(40, 0, 30, 10, 10, 10);
-	loadOBJ(renderer, 'assets/testObj/', 'testObj', 'PhongMaterial', testTransform);
+	let knightTransform = setTransform(0, 0, 0, 2, 2, 2);
+	loadOBJ(renderer, 'assets/kknight/', 'knight', 'PhongMaterial', knightTransform);
+
+	let stoneTransform = setTransform(40, 0, 30, 10, 10, 10);
+	loadOBJ(renderer, 'assets/testObj/', 'testObj', 'PhongMaterial', stoneTransform);//stoneTransform
 	//loadOBJ(renderer, 'assets/Earth/', 'Earth', 'PhongMaterial', sphereTransform);
 
-	let sphereTransform = setTransform(0, 0, 0, 2, 2, 2);
-	loadOBJ(renderer, 'assets/kknight/', 'knight', 'PhongMaterial', sphereTransform);
+	
 
 	// let floorTransform = setTransform(0, 0, 0, 100, 100, 100);
 	//let cubeTransform = setTransform(0, 50, 0, 10, 50, 10);

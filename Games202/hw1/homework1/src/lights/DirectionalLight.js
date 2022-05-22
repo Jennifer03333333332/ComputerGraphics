@@ -34,7 +34,7 @@ class DirectionalLight {
         //mat4.ortho(projectionMatrix,-500,500,-500,500,0.1,1000);
         //mat4.ortho(projectionMatrix, -500.0, 500.0, -500.0, 500.0, 0.1, 500);
         //改变参数后锯齿少了很多 ？
-        mat4.ortho(projectionMatrix, -120.0, 120.0, -120.0, 120.0, 0, 500);
+        mat4.ortho(projectionMatrix, -120.0, 120.0, -120.0, 120.0, 1.0, 500);
         //顺序： projectionMatrix * viewMatrix
         mat4.multiply(lightMVP, projectionMatrix, viewMatrix);
         mat4.multiply(lightMVP, lightMVP, modelMatrix);

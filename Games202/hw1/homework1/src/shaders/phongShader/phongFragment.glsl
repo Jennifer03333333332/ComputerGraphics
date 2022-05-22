@@ -22,9 +22,10 @@ varying highp vec3 vNormal;
 //自定义的数
 #define PIXELS 2048.0
 //怎么来的？FILTER_SIZE 越大 越模糊， 越小 越 sharp 0.01
+#define NEAR_PLANE 1.0
 #define FILTER_SIZE (5.0 * 1.0 / PIXELS) 
-#define LIGHT_WIDTH 0.2//
-#define BLOCKER_SIZE (FILTER_SIZE / 10.0); //1.0/4800.0;//类似FILTER_SIZE
+#define LIGHT_WIDTH (FILTER_SIZE * 2.0)//
+#define BLOCKER_SIZE FILTER_SIZE; //1.0/4800.0;//类似FILTER_SIZE
 #define MAX_PENUMBRA 0.5
 
 #define EPS 1e-3
@@ -97,20 +98,19 @@ void uniformDiskSamples( const in vec2 randomSeed ) {
 
 //2.2 PCF
 float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {//PCF = sm + 抗锯齿
-
   
-  float bias = EPS;//Bias();
-  //poissonDisk[NUM_SAMPLES]里存的是采样点，根据采样点获取到visibility 然后求平均
-  //? glsl怎么写for： 和C++一样
+  
+  
   float visibility_res = 0.0;
-  
+  //float bias = Bias();
+  //poissonDisk[NUM_SAMPLES]里存的是采样点，根据采样点获取到visibility 然后求平均
   for( int i = 0; i < PCF_NUM_SAMPLES; i++ ) {
     //poissonDisk[i]里的采样结果在[-1,1],需要缩小(*unit offset) 变成采样点附近的点
     vec2 tex_coord = poissonDisk[i]*filterSize + coords.xy;
     vec4 depthpack = texture2D(shadowMap, tex_coord);
     //depthpack = vec4(depthpack.xyz,1.0);//?
     float depthUnpack = unpack(depthpack);//unpack后已经在[0,1]
-    if(depthUnpack > coords.z - bias){
+    if(depthUnpack + EPS >= coords.z){
       visibility_res += 1.0;
     }
       
@@ -120,46 +120,64 @@ float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {//PCF = sm + 抗�
   
   //return 1.0;
 }
+
+// this search area estimation comes from the following article: 
+// https://developer.download.nvidia.com/whitepapers/2008/PCSS_Integration.pdf
+float BlockerSearchWidth(float receiverDistance)
+{
+	return LIGHT_WIDTH * (receiverDistance - NEAR_PLANE) / receiverDistance;
+}
+
 //2.3 PCSS
-//计算blocker周围 的平均深度。 zReceiver： shading point 到 光源的距离
+//计算blocker周围(SM上一圈 到 光源) 的平均深度。 zReceiver： shading point 到 光源的距离
 float findBlocker(sampler2D shadowMap, vec2 uv, float zReceiver ) {
     
     float avg_depth = 0.0;
     int num_of_blockerpoint = 0;
     for( int i = 0; i < BLOCKER_SEARCH_NUM_SAMPLES; i++ ) {
-      //又要用采样
-      vec2 tex_coord = poissonDisk[i]*BLOCKER_SIZE + uv;
+      float blockerWidth = BlockerSearchWidth(zReceiver);
+      vec2 tex_coord = poissonDisk[i]*blockerWidth + uv;
       vec4 depthpack = texture2D(shadowMap, tex_coord);
       float cur_depthUnpack = unpack(depthpack);
+      //sm的深度为什么<0?
+      if (abs(cur_depthUnpack) < 1e-5) cur_depthUnpack = 1.0;
       //该采样点是blocker
-      if(cur_depthUnpack > zReceiver - EPS){// 这个是“周围”的像素，和zReceiver比较能行吗？
+      if(cur_depthUnpack + EPS < zReceiver){// 这个是“周围”的像素，能和shading point的z比较吗？ 
         avg_depth += cur_depthUnpack;//error: +=1
         num_of_blockerpoint += 1;
       }
     }
-	  return avg_depth / float(num_of_blockerpoint);//只计算能block的点
+    //if no blocker
+    if(num_of_blockerpoint < 1)return -1.0;
+    
+	  return avg_depth / float(num_of_blockerpoint);//只计算能block的点  
 }
 
 float PCSS(sampler2D shadowMap, vec4 coords){
 
   // STEP 1: avgblocker depth: 调用findBlocker
-  vec4 depthpack = texture2D(shadowMap, coords.xy);
-  float depth_sm_to_light = unpack(depthpack);//unpack后已经在[0,1]
-  //该点无blocker
-  if(depth_sm_to_light > coords.z - EPS){
-    return 1.0;
-  }
-  //有blocker
-  //在该点周围找一圈像素，计算平均深度
-  float avg_depth = findBlocker(shadowMap, coords.xy, coords.z);
+  //在该点周围找一圈(有blocker的点)像素，计算平均深度
+  float avg_depth = findBlocker(shadowMap, coords.xy, coords.z);//test结果 avg_depth = 1
+  //如果avg_depth 太小，那么blocker在光源附近？filtersize会非常大？
+  //周围无blocker
+  if(avg_depth < EPS)return 1.0;
+  // if(avg_depth <= EPS){//经测试avg_depth<= 0？ coords.z在0.3左右
+  //   return 1.0;
+  // }
   // STEP 2: penumbra size
     //d_blocker(就是avg_depth) : d_receiver(是coords.z  - avg_depth) = W_light : W_penumbra(=filter size)
   //自定义了光源大小
-  float W_penumbra = LIGHT_WIDTH * (coords.z - avg_depth) / avg_depth;
-  //问题：W_penumbra太小了 ？
+
+  float W_penumbra = LIGHT_WIDTH * (coords.z - avg_depth) / avg_depth * NEAR_PLANE / coords.z;
+
+  //问题：W_penumbra中间大，阴影边缘小。需要让阴影边缘的filter size变大
   //W_penumbra = min(W_penumbra, MAX_PENUMBRA);
   // STEP 3: filtering
-  return PCF(shadowMap, coords, W_penumbra);//FILTER_SIZE
+  //1 没影子； 越小影子越黑 包括负数
+  // if(coords.z  < 0.3)return 1.0;
+  //return W_penumbra;
+
+  return PCF(shadowMap, coords, W_penumbra);
 }
 
 
@@ -187,7 +205,7 @@ float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
   //if (abs(depthUnpack) < 1e-5) depthOnShadowMap = 1.0;
 
   //如果shadow map的depth < lightsource->shading point 的distance，有shadow
-  if(depth_sm_to_light < shadowCoord.z - bias)
+  if(depth_sm_to_light + bias < shadowCoord.z)
       return 0.0;//有阴影
   return 1.0;//没有阴影
 
@@ -223,6 +241,18 @@ vec3 blinnPhong() {
   return phongColor;
 }
 
+
+      
+void testValue(float value){
+  if(value < 0.0)gl_FragColor = vec4(1, 0, 0, 1);
+  // else if(value < 0.5) gl_FragColor =vec4(0, value, 0, 0);
+  // else if(value < 1.0) gl_FragColor =vec4(0, 0, value, 0);
+  else if (value > 1.0) gl_FragColor =vec4(0, 0, 1, 1);
+  else{
+    gl_FragColor =vec4(0, value, 0, 1);//value 0则 黑 1 则绿
+  }
+}
+
 void main(void) {
   //version 1 
   float visibility = 1.0;
@@ -247,11 +277,12 @@ void main(void) {
   visibility = PCSS(uShadowMap, vec4(shadowCoordNDC, 1.0));
 
   vec3 phongColor = blinnPhong();
-  //0: 无颜色 黑
+  //0: 无颜色 黑 1:正常phong
   gl_FragColor = vec4(phongColor * visibility, 1.0);
 
 
-
   //origin
-  //gl_FragColor = vec4(phongColor, 1.0);
+  
+  //gl_FragColor =vec4(1, 1, 1, 1);//all white
+  //testValue(visibility);
 }
