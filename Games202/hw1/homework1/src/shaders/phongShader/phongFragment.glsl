@@ -98,9 +98,6 @@ void uniformDiskSamples( const in vec2 randomSeed ) {
 
 //2.2 PCF
 float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {//PCF = sm + 抗锯齿
-  
-  
-  
   float visibility_res = 0.0;
   //float bias = Bias();
   //poissonDisk[NUM_SAMPLES]里存的是采样点，根据采样点获取到visibility 然后求平均
@@ -113,12 +110,9 @@ float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {//PCF = sm + 抗�
     if(depthUnpack + EPS >= coords.z){
       visibility_res += 1.0;
     }
-      
   }
   return visibility_res/float(PCF_NUM_SAMPLES);
   //return (float(NUM_SAMPLES) - visibility_res)/float(NUM_SAMPLES);//阴影变光
-  
-  //return 1.0;
 }
 
 // this search area estimation comes from the following article: 
@@ -140,7 +134,7 @@ float findBlocker(sampler2D shadowMap, vec2 uv, float zReceiver ) {
       vec4 depthpack = texture2D(shadowMap, tex_coord);
       float cur_depthUnpack = unpack(depthpack);
       //sm的深度为什么<0?
-      if (abs(cur_depthUnpack) < 1e-5) cur_depthUnpack = 1.0;
+      //if (abs(cur_depthUnpack) < 1e-5) cur_depthUnpack = 1.0;
       //该采样点是blocker
       if(cur_depthUnpack + EPS < zReceiver){// 这个是“周围”的像素，能和shading point的z比较吗？ 
         avg_depth += cur_depthUnpack;//error: +=1
@@ -153,30 +147,22 @@ float findBlocker(sampler2D shadowMap, vec2 uv, float zReceiver ) {
 	  return avg_depth / float(num_of_blockerpoint);//只计算能block的点  
 }
 
-float PCSS(sampler2D shadowMap, vec4 coords){
+float PCSS(sampler2D shadowMap, vec4 coords){//经测试coords.z在0.3左右
 
   // STEP 1: avgblocker depth: 调用findBlocker
-  //在该点周围找一圈(有blocker的点)像素，计算平均深度
-  float avg_depth = findBlocker(shadowMap, coords.xy, coords.z);//test结果 avg_depth = 1
-  //如果avg_depth 太小，那么blocker在光源附近？filtersize会非常大？
+  // 在该点周围找一圈(有blocker的点)像素，计算平均深度
+  float avg_depth = findBlocker(shadowMap, coords.xy, coords.z);
   //周围无blocker
   if(avg_depth < EPS)return 1.0;
-  // if(avg_depth <= EPS){//经测试avg_depth<= 0？ coords.z在0.3左右
-  //   return 1.0;
-  // }
-  // STEP 2: penumbra size
-    //d_blocker(就是avg_depth) : d_receiver(是coords.z  - avg_depth) = W_light : W_penumbra(=filter size)
-  //自定义了光源大小
 
-  float W_penumbra = LIGHT_WIDTH * (coords.z - avg_depth) / avg_depth * NEAR_PLANE / coords.z;
+  // STEP 2: penumbra size
+    //d_blocker( == avg_depth) : d_receiver(是coords.z  - avg_depth) = W_light : W_penumbra(filter size)
+  float W_penumbra = LIGHT_WIDTH * (coords.z - avg_depth) / avg_depth * NEAR_PLANE;// / coords.z;
 
   //问题：W_penumbra中间大，阴影边缘小。需要让阴影边缘的filter size变大
-  //W_penumbra = min(W_penumbra, MAX_PENUMBRA);
+  // W_penumbra = min(W_penumbra, MAX_PENUMBRA);//限制W_penumbra最大值，阴影不至于太过模糊
   // STEP 3: filtering
-  //1 没影子； 越小影子越黑 包括负数
-  // if(coords.z  < 0.3)return 1.0;
-  //return W_penumbra;
-
+  //1: no shadows; <= 0 dark shadow
   return PCF(shadowMap, coords, W_penumbra);
 }
 
