@@ -2,7 +2,10 @@
 */Book/*
 *.db
 *.opendb
+build/
 */build/*
+ext_build/
+
 .vs/
 .vs/*
 .vscode/*
